@@ -30,7 +30,7 @@ def main():
 if __name__ == '__main__':
     with io.open('./trace.out', mode='w', encoding='utf-8') as fh:
         tp = TraceProfiler(output=fh)
-        tp.install()
+        tp.init()
         main()
         tp.shutdown()
         print('wrote trace.out')
