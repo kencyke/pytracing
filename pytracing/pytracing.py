@@ -1,28 +1,20 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import os
 import sys
 import json
 import time
 import threading
 from contextlib import contextmanager
-
-try:
-    from queue import Queue
-except ImportError:
-    from Queue import Queue
+from queue import Queue
+from types import FrameType
+from typing import Any, IO, Iterator
 
 
-def to_microseconds(s):
-    return 1000000 * float(s)
+def seconds_to_microseconds(s: float) -> int:
+    return int(1000000 * s)
 
 
 class TraceWriter(threading.Thread):
-    def __init__(self, terminator, input_queue, output_stream):
+    def __init__(self, terminator: threading.Event, input_queue: Queue, output_stream: IO[str]) -> None:
         threading.Thread.__init__(self)
         self.daemon = True
         self.terminator = terminator
@@ -37,7 +29,7 @@ class TraceWriter(threading.Thread):
         """Write the closing of a JSON array to the output."""
         self.output.write('{}]')  # empty {} so the final entry doesn't end with a comma
 
-    def run(self):
+    def run(self) -> None:
         self._open_collection()
         while not self.terminator.is_set() or not self.input.empty():
             item = self.input.get()
@@ -59,20 +51,20 @@ class TraceProfiler(object):
 
     TYPES = {'call': 'B', 'return': 'E'}
 
-    def __init__(self, output, clock=None):
+    def __init__(self, output: IO[str], clock=None) -> None:
         self.output = output
         self.clock = clock or time.time
         self.pid = os.getpid()
-        self.queue = Queue()
+        self.queue: Queue = Queue()
         self.terminator = threading.Event()
         self.writer = TraceWriter(self.terminator, self.queue, self.output)
 
     @property
-    def thread_id(self):
+    def thread_id(self) -> str:
         return threading.current_thread().name
 
     @contextmanager
-    def traced(self):
+    def traced(self) -> Iterator[None]:
         """Context manager for install/shutdown in a with block."""
         self.install()
         try:
@@ -92,9 +84,17 @@ class TraceProfiler(object):
         self.terminator.set()  # Stop the writer thread.
         self.writer.join()  # Join the writer thread.
 
-    def fire_event(self, event_type, func_name, func_filename, func_line_no, caller_filename, caller_line_no):
+    def fire_event(
+        self,
+        event_type: str,
+        func_name: str,
+        func_filename: str,
+        func_line_no: int,
+        caller_filename: str,
+        caller_line_no: int,
+    ) -> None:
         """Write a trace event to the output stream."""
-        timestamp = to_microseconds(self.clock())
+        timestamp = seconds_to_microseconds(self.clock())
         # https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
 
         event = dict(
@@ -111,7 +111,7 @@ class TraceProfiler(object):
         )
         self.queue.put(event)
 
-    def tracer(self, frame, event_type, arg):
+    def tracer(self, frame: FrameType, event_type: str, arg: Any) -> None:
         """Bound tracer function for sys.settrace()."""
         try:
             if event_type in self.TYPES.keys() and frame.f_code.co_name != 'write':
