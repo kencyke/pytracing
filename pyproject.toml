@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "pytracing"
+version = "0.4.1"
+description = "A python trace profiler that outputs to chrome trace-viewer format (about://tracing)."
+authors = ["kencyke <casek2703@gmail.com>"]
+license = "MIT"
+url = "https://github.com/kencyke/pytracing"
+packages = [
+    { include = "pytracing" }
+]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
