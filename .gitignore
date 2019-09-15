@@ -63,3 +63,6 @@ trace.out
 
 # venv
 .venv/
+
+# mypy
+.mypy_cache/
