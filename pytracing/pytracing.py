@@ -21,20 +21,12 @@ class TraceWriter(threading.Thread):
         self.input = input_queue
         self.output = output_stream
 
-    def _open_collection(self):
-        """Write the opening of a JSON array to the output."""
-        self.output.write('[')
-
-    def _close_collection(self):
-        """Write the closing of a JSON array to the output."""
-        self.output.write('{}]')  # empty {} so the final entry doesn't end with a comma
-
     def run(self) -> None:
-        self._open_collection()
+        self.output.write('[')
         while not self.terminator.is_set() or not self.input.empty():
             item = self.input.get()
             self.output.write(json.dumps(item) + ',\n')
-        self._close_collection()
+        self.output.write('{}]')  # empty {} so the final entry doesn't end with a comma
 
 
 class TraceProfiler(object):
@@ -66,19 +58,20 @@ class TraceProfiler(object):
     @contextmanager
     def traced(self) -> Iterator[None]:
         """Context manager for install/shutdown in a with block."""
-        self.install()
+        self.init()
         try:
             yield
         finally:
             self.shutdown()
 
-    def install(self):
-        """Install the trace function and open the JSON output stream."""
+    def init(self):
+        """Set the profile function, and start the writer thread."""
         self.writer.start()  # Start the writer thread.
         sys.setprofile(self.tracer)  # Set the trace/profile function.
         threading.setprofile(self.tracer)  # Set the trace/profile function for threads.
 
     def shutdown(self):
+        """Unset the profile function and stop the writer thread."""
         sys.setprofile(None)  # Clear the trace/profile function.
         threading.setprofile(None)  # Clear the trace/profile function for threads.
         self.terminator.set()  # Stop the writer thread.
@@ -93,10 +86,10 @@ class TraceProfiler(object):
         caller_filename: str,
         caller_line_no: int,
     ) -> None:
-        """Write a trace event to the output stream."""
+        """Queue a trace event."""
         timestamp = seconds_to_microseconds(self.clock())
-        # https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
 
+        # https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
         event = dict(
             name=func_name,  # Event Name.
             cat=func_filename,  # Event Category.
@@ -111,8 +104,9 @@ class TraceProfiler(object):
         )
         self.queue.put(event)
 
+    # https://docs.python.org/ja/3/library/sys.html#sys.setprofile
     def tracer(self, frame: FrameType, event_type: str, arg: Any) -> None:
-        """Bound tracer function for sys.settrace()."""
+        """Bound profile function for sys.profile()."""
         try:
             if event_type in self.TYPES.keys() and frame.f_code.co_name != 'write':
                 self.fire_event(
